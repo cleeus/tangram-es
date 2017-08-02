@@ -6,6 +6,7 @@ import android.graphics.PointF;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLSurfaceView.Renderer;
 import android.os.Handler;
+import android.support.annotation.Keep;
 import android.util.DisplayMetrics;
 
 import com.mapzen.tangram.TouchInput.Gestures;
@@ -30,6 +31,7 @@ public class MapController implements Renderer {
     /**
      * Options for interpolating map parameters
      */
+    @Keep
     public enum EaseType {
         LINEAR,
         CUBIC,
@@ -78,6 +80,7 @@ public class MapController implements Renderer {
      * Listener should be set with {@link #setFeaturePickListener(FeaturePickListener)}
      * The callback will be run on the main (UI) thread.
      */
+    @Keep
     public interface FeaturePickListener {
         /**
          * Receive information about features found in a call to {@link #pickFeature(float, float)}
@@ -93,6 +96,7 @@ public class MapController implements Renderer {
      * Listener should be set with {@link #setLabelPickListener(LabelPickListener)}
      * The callback will be run on the main (UI) thread.
      */
+    @Keep
     public interface LabelPickListener {
         /**
          * Receive information about labels found in a call to {@link #pickLabel(float, float)}
@@ -109,6 +113,7 @@ public class MapController implements Renderer {
      * Listener should be set with {@link #setMarkerPickListener(MarkerPickListener)}
      * The callback will be run on the main (UI) thread.
      */
+    @Keep
     public interface MarkerPickListener {
         /**
          * Receive information about marker found in a call to {@link #pickMarker(float, float)}
@@ -133,6 +138,7 @@ public class MapController implements Renderer {
      * Listener should be set with {@link #setSceneUpdateErrorListener(SceneUpdateErrorListener)}
      * The callback will be run on the main (UI) thread.
      */
+    @Keep
     public interface SceneUpdateErrorListener {
         /**
          * Receive error status when a scene update failed
@@ -565,6 +571,7 @@ public class MapController implements Renderer {
      *
      * Typically this does not need to be called from outside Tangram, see {@link #setRenderMode(int)}.
      */
+    @Keep
     public void requestRender() {
         mapView.requestRender();
     }
@@ -576,6 +583,7 @@ public class MapController implements Renderer {
      * changes or when any animation in the map requires rendering.
      * @param renderMode Either 1, to render continuously, or 0, to render only when needed.
      */
+    @Keep
     public void setRenderMode(int renderMode) {
         mapView.setRenderMode(renderMode);
     }
@@ -1085,6 +1093,7 @@ public class MapController implements Renderer {
         return nativeMarkerSetDrawOrder(mapPointer, markerId, drawOrder);
     }
 
+    @Keep
     Marker markerById(long markerId) {
         return markers.get(markerId);
     }
@@ -1233,7 +1242,7 @@ public class MapController implements Renderer {
 
     // Networking methods
     // ==================
-
+    @Keep
     void cancelUrlRequest(String url) {
         if (httpHandler == null) {
             return;
@@ -1241,6 +1250,7 @@ public class MapController implements Renderer {
         httpHandler.onCancel(url);
     }
 
+    @Keep
     boolean startUrlRequest(final String url, final long callbackPtr) throws Exception {
         if (httpHandler == null) {
             return false;
@@ -1272,12 +1282,14 @@ public class MapController implements Renderer {
 
     // Font Fetching
     // =============
+    @Keep
     String getFontFilePath(String key) {
 
         return fontFileParser.getFontFile(key);
 
     }
 
+    @Keep
     String getFontFallbackFilePath(int importance, int weightHint) {
 
         return fontFileParser.getFontFallback(importance, weightHint);
