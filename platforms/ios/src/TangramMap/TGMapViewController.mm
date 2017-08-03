@@ -29,7 +29,7 @@ __CG_STATIC_ASSERT(sizeof(TGGeoPoint) == sizeof(Tangram::LngLat));
     BOOL viewComplete;
 }
 
-@property (nullable, copy, nonatomic) NSString* scenePath;
+@property (nullable, copy, nonatomic) NSURL* sceneUrl;
 @property (nullable, strong, nonatomic) EAGLContext* context;
 @property (assign, nonatomic) CGFloat contentScaleFactor;
 @property (assign, nonatomic) BOOL renderRequested;
@@ -144,70 +144,70 @@ __CG_STATIC_ASSERT(sizeof(TGGeoPoint) == sizeof(Tangram::LngLat));
     };
 }
 
-- (int)loadSceneFile:(NSString*)path
+- (int)loadSceneFromURL:(NSURL *)url
 {
-    return [self loadSceneFile:path sceneUpdates:nil];
+    return [self loadSceneFromURL:url withUpdates:nil];
 }
 
-- (int)loadSceneFileAsync:(NSString*)path
+- (int)loadSceneAsyncFromURL:(NSURL *)url
 {
-    return [self loadSceneFileAsync:path sceneUpdates:nil];
+    return [self loadSceneAsyncFromURL:url withUpdates:nil];
 }
 
-- (int)loadSceneFile:(NSString *)path sceneUpdates:(NSArray<TGSceneUpdate *> *)sceneUpdates
+- (int)loadSceneFromURL:(NSURL *)url withUpdates:(NSArray<TGSceneUpdate *> *)updates
 {
     if (!self.map) { return -1; }
 
-    std::vector<Tangram::SceneUpdate> updates;
+    std::vector<Tangram::SceneUpdate> sceneUpdates;
 
-    if (sceneUpdates) {
-        for (TGSceneUpdate* update in sceneUpdates) {
-            updates.push_back({std::string([update.path UTF8String]), std::string([update.value UTF8String])});
+    if (updates) {
+        for (TGSceneUpdate* update in updates) {
+            sceneUpdates.push_back({std::string([update.path UTF8String]), std::string([update.value UTF8String])});
         }
     }
 
-    self.scenePath = path;
+    self.sceneUrl = url;
 
     self.map->setSceneReadyListener([self sceneReadyListener]);
-    return self.map->loadScene([path UTF8String], false, updates);
+    return self.map->loadScene([[url absoluteString] UTF8String], false, sceneUpdates);
 }
 
-- (int)loadSceneFileAsync:(NSString *)path sceneUpdates:(NSArray<TGSceneUpdate *> *)sceneUpdates
+- (int)loadSceneAsyncFromURL:(NSURL *)url withUpdates:(NSArray<TGSceneUpdate *> *)updates
 {
     if (!self.map) { return -1; }
 
-    std::vector<Tangram::SceneUpdate> updates;
+    std::vector<Tangram::SceneUpdate> sceneUpdates;
 
-    if (sceneUpdates) {
-        for (TGSceneUpdate* update in sceneUpdates) {
-            updates.push_back({std::string([update.path UTF8String]), std::string([update.value UTF8String])});
+    if (updates) {
+        for (TGSceneUpdate* update in updates) {
+            sceneUpdates.push_back({std::string([update.path UTF8String]), std::string([update.value UTF8String])});
         }
     }
 
-    self.scenePath = path;
+    self.sceneUrl = url;
 
     self.map->setSceneReadyListener([self sceneReadyListener]);
-    return self.map->loadSceneAsync([path UTF8String], false, updates);
+    return self.map->loadSceneAsync([[url absoluteString] UTF8String], false, sceneUpdates);
 }
 
 #pragma mark Scene updates
 
-- (int)updateSceneAsync:(NSArray<TGSceneUpdate *> *)sceneUpdates
+- (int)updateSceneAsync:(NSArray<TGSceneUpdate *> *)updates
 {
     if (!self.map) { return -1; }
 
-    if (!sceneUpdates || ![sceneUpdates count]) {
+    if (!updates || ![updates count]) {
         return -1;
     }
 
-    std::vector<Tangram::SceneUpdate> updates;
+    std::vector<Tangram::SceneUpdate> sceneUpdates;
 
-    for (TGSceneUpdate* update in sceneUpdates) {
-        updates.push_back({std::string([update.path UTF8String]), std::string([update.value UTF8String])});
+    for (TGSceneUpdate* update in updates) {
+        sceneUpdates.push_back({std::string([update.path UTF8String]), std::string([update.value UTF8String])});
     }
 
     self.map->setSceneReadyListener([self sceneReadyListener]);
-    return self.map->updateSceneAsync(updates);
+    return self.map->updateSceneAsync(sceneUpdates);
 }
 
 #pragma mark Longitude/Latitude - Screen position conversions
