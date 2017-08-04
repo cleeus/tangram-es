@@ -131,9 +131,9 @@ __CG_STATIC_ASSERT(sizeof(TGGeoPoint) == sizeof(Tangram::LngLat));
 
 - (Tangram::SceneReadyCallback) sceneReadyListener {
     return [=](int sceneID, auto sceneError) {
-        if (!self.mapViewDelegate || ![self.mapViewDelegate respondsToSelector:@selector(mapView:didLoadScene:withError:)]) { return; }
-
         [self.markersById removeAllObjects];
+
+        if (!self.mapViewDelegate || ![self.mapViewDelegate respondsToSelector:@selector(mapView:didLoadScene:withError:)]) { return; }
 
         NSError* error = nil;
         if (sceneError) {
