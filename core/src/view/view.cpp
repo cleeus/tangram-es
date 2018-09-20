@@ -262,12 +262,12 @@ void View::makeCameraTransformAndProjectionAR(glm::mat4& cameraTransform,glm::ma
     //glm::eulerAngleYXZ(valType const &yaw, valType const &pitch, valType const &roll)
     //glm::yawPitchRoll(valType const &yaw, valType const &pitch, valType const &roll)
     glm::mat4 pitch_mat = glm::eulerAngleX(m_pitch);
-    glm::mat4 yaw_mat = glm::eulerAngleY(m_roll);
+    glm::mat4 yaw_mat = glm::rotate(m_roll, glm::vec3(0.0f, 0.0f, 1.0f));
     glm::mat4 trans_mat = glm::translate(glm::vec3(0.0f,0.0f,m_altitude));
 
     //cameraTransform = rM * tM; //height => z distance
     //cameraTransform = translation * pitch_rotation;   //height => distance from map plane (correct one)
-    cameraTransform = trans_mat * pitch_mat * yaw_mat;
+    cameraTransform = trans_mat * yaw_mat * pitch_mat;
 
 
     // find dimensions of tiles in world space at new zoom level
