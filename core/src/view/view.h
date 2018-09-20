@@ -15,9 +15,12 @@ namespace Tangram {
 
 enum class CameraType : uint8_t {
     perspective = 0,
-    isometric,
-    flat,
+    isometric = 1,
+    flat = 2,
+    perspective_free = 4,
 };
+
+
 
 struct Stops;
 
@@ -120,6 +123,7 @@ public:
 
     /* Sets the zoom level of the view */
     void setZoom(float _z);
+    void setAltitude(float _a);
 
     /* Sets the roll angle of the view in radians (default is 0) */
     void setRoll(float _rad);
@@ -141,6 +145,7 @@ public:
 
     /* Gets the current zoom */
     float getZoom() const { return m_zoom; }
+    float getAltitude() const { return m_altitude; }
 
     /* Get the current roll angle in radians */
     float getRoll() const { return m_roll; }
@@ -220,6 +225,9 @@ public:
 protected:
 
     void updateMatrices();
+    void makeCameraTransformAndProjectionAR(glm::mat4& cameraTransform,glm::mat4& cameraProjection, glm::vec3& posOffset);
+    void makeCameraTransformAndProjectionPitchRoll(glm::mat4& cameraTransform,glm::mat4& cameraProjection, glm::vec3& posOffset);
+    void updateMatricesFPC(glm::mat4 cameraTransform,glm::mat4 cameraProjection, glm::vec3 posOffset);
 
     double screenToGroundPlaneInternal(double& _screenX, double& _screenY) const;
 
@@ -246,6 +254,7 @@ protected:
     float m_pitch = 0.f;
 
     float m_zoom = 0.f;
+    float m_altitude = 0.f;
 
     float m_width;
     float m_height;

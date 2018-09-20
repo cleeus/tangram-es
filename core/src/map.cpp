@@ -44,6 +44,7 @@ struct CameraEase {
         float zoom;
         float rotation;
         float tilt;
+        float altitude;
     } start, end;
 };
 
@@ -139,6 +140,7 @@ void Map::Impl::setScene(std::shared_ptr<Scene>& _scene) {
     view.setCameraType(camera.type);
 
     switch (camera.type) {
+    case CameraType::perspective_free:
     case CameraType::perspective:
         view.setVanishingPoint(camera.vanishingPoint.x, camera.vanishingPoint.y);
         if (camera.fovStops) {
@@ -594,6 +596,7 @@ CameraPosition Map::getCameraPosition() {
     camera.zoom = getZoom();
     camera.rotation = getRotation();
     camera.tilt = getTilt();
+    camera.altitude = impl->view.getAltitude();
 
     return camera;
 }
@@ -615,6 +618,7 @@ void Map::setCameraPosition(const CameraPosition& _camera) {
     impl->view.setZoom(_camera.zoom);
     impl->view.setRoll(_camera.rotation);
     impl->view.setPitch(_camera.tilt);
+    impl->view.setAltitude(_camera.altitude);
 
     impl->platform->requestRender();
 }
@@ -655,6 +659,9 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
     e.start.tilt = getTilt();
     e.end.tilt = _camera.tilt;
 
+    e.start.altitude = impl->view.getAltitude();
+    e.end.altitude = _camera.altitude;
+
     impl->ease = std::make_unique<Ease>(_duration,
         [=](float t) {
             impl->view.setPosition(ease(e.start.pos.x, e.end.pos.x, t, _e),
@@ -664,6 +671,8 @@ void Map::setCameraPositionEased(const CameraPosition& _camera, float _duration,
             impl->view.setRoll(ease(e.start.rotation, e.end.rotation, t, _e));
 
             impl->view.setPitch(ease(e.start.tilt, e.end.tilt, t, _e));
+
+            impl->view.setAltitude(ease(e.start.altitude, e.end.altitude, t, _e));
         });
 
     platform->requestRender();
@@ -686,6 +695,9 @@ void Map::updateCameraPosition(const CameraUpdate& _update, float _duration, Eas
     if ((_update.set & CameraUpdate::SET_ZOOM) != 0) {
         camera.zoom = _update.zoom;
     }
+    if ((_update.set & CameraUpdate::SET_ALTITUDE) != 0) {
+        camera.altitude = _update.altitude;
+    }
     if ((_update.set & CameraUpdate::SET_ROTATION) != 0) {
         camera.rotation = _update.rotation;
     }
@@ -694,6 +706,9 @@ void Map::updateCameraPosition(const CameraUpdate& _update, float _duration, Eas
     }
     if ((_update.set & CameraUpdate::SET_ZOOM_BY) != 0) {
         camera.zoom += _update.zoomBy;
+    }
+    if ((_update.set & CameraUpdate::SET_ALTITUDE_BY) != 0) {
+        camera.altitude += _update.altitudeBy;
     }
     if ((_update.set & CameraUpdate::SET_ROTATION_BY) != 0) {
         camera.rotation += _update.rotationBy;

@@ -1,6 +1,7 @@
 #include "glfwApp.h"
 #include <GLFW/glfw3.h>
 #include <cstdlib>
+#include <cmath>
 
 #ifndef BUILD_NUM_STRING
 #define BUILD_NUM_STRING ""
@@ -53,6 +54,12 @@ double last_y_velocity = 0.0;
 Tangram::MarkerID marker = 0;
 Tangram::MarkerID poiMarker = 0;
 Tangram::MarkerID polyline = 0;
+
+
+double cameraHorizontalVelocity = 0;
+double cameraRotationalVelocity = 0;
+double cameraVerticalVelocity = 0;
+bool flyMode = false;
 
 void loadSceneFile(bool setPosition) {
     std::vector<SceneUpdate> updates;
@@ -159,6 +166,30 @@ void create(std::shared_ptr<Platform> p, int w, int h) {
 
 }
 
+
+static inline double deg2rad(const double deg) {
+    const double f = 3.14159265358979323846264338327950288l / 180.0l;
+    return deg * f;
+}
+
+static void updateCameraPositionFlyMode(float delta_t) {
+    CameraPosition cp = map->getCameraPosition();
+    CameraUpdate cu;
+    cu.set = CameraUpdate::SET_CAMERA | CameraUpdate::SET_LNGLAT | CameraUpdate::SET_ROTATION_BY | CameraUpdate::SET_ALTITUDE_BY;
+
+    const double rotation_rad = cp.rotation + cameraRotationalVelocity*delta_t + deg2rad(90.0);
+    const double cos_rot = std::cos(rotation_rad);
+    const double sin_rot = std::sin(rotation_rad);
+    const double delta_x_lng = cos_rot * cameraHorizontalVelocity;
+    const double delta_y_lat = sin_rot * cameraHorizontalVelocity;
+    cu.lngLat.longitude = cp.longitude + delta_x_lng * delta_t;
+    cu.lngLat.latitude = cp.latitude + delta_y_lat * delta_t;
+    cu.rotationBy = cameraRotationalVelocity*delta_t;
+    cu.altitudeBy = cameraVerticalVelocity*delta_t;
+
+    map->updateCameraPosition(cu);
+}
+
 void run() {
 
     loadSceneFile(true);
@@ -173,6 +204,9 @@ void run() {
         lastTime = currentTime;
 
         // Render
+        if(flyMode) {
+            updateCameraPositionFlyMode(delta);
+        }
         map->update(delta);
         map->render();
 
@@ -321,9 +355,12 @@ void scrollCallback(GLFWwindow* window, double scrollx, double scrolly) {
 
 }
 
+
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 
     CameraPosition camera = map->getCameraPosition();
+    CameraUpdate cu;
 
     if (action == GLFW_PRESS) {
         switch (key) {
@@ -447,9 +484,39 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 camera.zoom = 16.f;
                 map->flyTo(camera, -1.f, 1.0);
                 break;
-            case GLFW_KEY_W:
-                map->onMemoryWarning();
+
+            case GLFW_KEY_F:
+                map->setCameraType(4); //perspective-free
+                flyMode = true;
+                cu.set = CameraUpdate::SET_CAMERA | CameraUpdate::SET_TILT | CameraUpdate::SET_ALTITUDE;
+                cu.tilt = 0;
+                cu.altitude = 200;
+                map->updateCameraPosition(cu);
                 break;
+            case GLFW_KEY_UP:
+                cameraHorizontalVelocity+= 0.0001;
+                break;
+            case GLFW_KEY_DOWN:
+                cameraHorizontalVelocity-= 0.0001;
+                break;
+            case GLFW_KEY_LEFT:
+                cameraRotationalVelocity += 0.01;
+                break;
+            case GLFW_KEY_RIGHT:
+                cameraRotationalVelocity -= 0.01;
+                break;
+            case GLFW_KEY_KP_1:
+                cameraVerticalVelocity += 1;
+                break;
+            case GLFW_KEY_KP_0:
+                cameraVerticalVelocity -= 1;
+                break;
+            case GLFW_KEY_ENTER:
+                cameraHorizontalVelocity = 0;
+                cameraRotationalVelocity = 0;
+                cameraVerticalVelocity = 0;
+                break;
+
         default:
                 break;
         }

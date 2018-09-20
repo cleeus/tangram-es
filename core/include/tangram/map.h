@@ -93,11 +93,25 @@ enum class EaseType : char {
 };
 
 struct CameraPosition {
+    //traditional cameras that look at the map center
     double longitude = 0;
     double latitude = 0;
     float zoom = 0;
-    float rotation = 0;
-    float tilt = 0;
+    //float rotation = 0;
+    //float tilt = 0;
+
+
+    //new free camera that looks somewhere (also uses longitute/latitude)
+    float altitude = 0; //meters
+    union {
+        float rotation = 0;
+        float yaw;
+    };
+    union {
+        float tilt = 0; // 0 is orthogonal to map
+        float pitch; //0 is straight horizontal
+    };
+    float roll = 0;
 };
 
 struct EdgePadding {
@@ -122,7 +136,9 @@ struct CameraUpdate {
         SET_TILT =        1 << 5,
         SET_TILT_BY =     1 << 6,
         SET_BOUNDS =      1 << 7,
-        SET_CAMERA =      1 << 8,
+        SET_ALTITUDE =    1 << 8,
+        SET_ALTITUDE_BY = 1 << 9,
+        SET_CAMERA =      1 << 10,
     };
     int set = 0;
 
@@ -133,6 +149,8 @@ struct CameraUpdate {
     float rotationBy = 0;
     float tilt = 0;
     float tiltBy = 0;
+    float altitude = 0;
+    float altitudeBy = 0;
     std::array<LngLat,2> bounds;
     EdgePadding padding;
 };
@@ -267,10 +285,10 @@ public:
     // calculated for the duration of the flight path. (Recommended range 0.1 - 2.0)
     void flyTo(const CameraPosition& _camera, float _duration, float _speed = 1.0f);
 
-    // Set the camera type (0 = perspective, 1 = isometric, 2 = flat)
+    // Set the camera type (0 = perspective, 1 = isometric, 2 = flat, 4 = perspective-free)
     void setCameraType(int _type);
 
-    // Get the camera type (0 = perspective, 1 = isometric, 2 = flat)
+    // Get the camera type (0 = perspective, 1 = isometric, 2 = flat, 4 = perspective-free)
     int getCameraType();
 
     CameraPosition getCameraPosition();

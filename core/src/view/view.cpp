@@ -6,6 +6,7 @@
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/rotate_vector.hpp"
+#include "glm/gtx/euler_angles.hpp"
 #include <cmath>
 
 #define MAX_LOD 6
@@ -200,6 +201,13 @@ void View::setZoom(float _z) {
     m_dirtyTiles = true;
 }
 
+void View::setAltitude(float _a) {
+    m_altitude = _a;
+    m_dirtyMatrices = true;
+    m_dirtyTiles = true;
+}
+
+
 void View::setRoll(float _roll) {
 
     m_roll = glm::mod(_roll, (float)TWO_PI);
@@ -245,6 +253,276 @@ LngLat View::getCenterCoordinates() const {
     return LngLat(center.x, center.y);
 }
 
+#if 1
+void View::makeCameraTransformAndProjectionAR(glm::mat4& cameraTransform,glm::mat4& cameraProjection, glm::vec3& posOffset)
+{
+    posOffset   = m_pos;
+    posOffset.z = m_altitude*10;
+
+    //glm::eulerAngleYXZ(valType const &yaw, valType const &pitch, valType const &roll)
+    //glm::yawPitchRoll(valType const &yaw, valType const &pitch, valType const &roll)
+    glm::mat4 pitch_mat = glm::eulerAngleX(m_pitch);
+    glm::mat4 yaw_mat = glm::eulerAngleY(m_roll);
+    glm::mat4 trans_mat = glm::translate(glm::vec3(0.0f,0.0f,m_altitude));
+
+    //cameraTransform = rM * tM; //height => z distance
+    //cameraTransform = translation * pitch_rotation;   //height => distance from map plane (correct one)
+    cameraTransform = trans_mat * pitch_mat * yaw_mat;
+
+
+    // find dimensions of tiles in world space at new zoom level
+    float worldTileSize = 2 * MapProjection::HALF_CIRCUMFERENCE * pow(2, -m_zoom);
+
+    // viewport height in world space is such that each tile is [m_pixelsPerTile] px square in screen space
+    float screenTileSize = s_pixelsPerTile * m_pixelScale;
+    m_height = (float)m_vpHeight * worldTileSize / screenTileSize;
+    m_width = m_height * m_aspect;
+
+    // set vertical field-of-view
+    float fovy = m_fov;
+
+    // we assume portrait orientation by default, so in landscape
+    // mode we scale the vertical FOV such that the wider dimension
+    // gets the intended FOV
+    if (m_width > m_height) {
+        fovy /= m_aspect;
+    }
+
+    float maxTileDistance = worldTileSize * invLodFunc(MAX_LOD + 1);
+    float near = m_altitude / 50.f;
+    float far = 1;
+
+    far = maxTileDistance;
+    cameraProjection = glm::perspective(fovy, m_aspect, near, far);    // Adjust for vanishing point.
+    //cameraProjection[2][0] -= m_vanishingPoint.x / getWidth();
+    //cameraProjection[2][1] -= m_vanishingPoint.y / getHeight();
+
+}
+#endif
+
+void View::makeCameraTransformAndProjectionPitchRoll(glm::mat4& cameraTransform,glm::mat4& cameraProjection, glm::vec3& posOffset)
+{
+    // to test out new function:
+    //
+    // construct a view matrix as before into m_view
+    // also construct a projection matrix etc.
+    // use this to get a camera matrix (inverse of view)
+    // call new updateMatricesFPC() function with the camera transformation and projection
+
+    // find dimensions of tiles in world space at new zoom level
+    float worldTileSize = 2 * MapProjection::HALF_CIRCUMFERENCE * pow(2, -m_zoom);
+
+    // viewport height in world space is such that each tile is [m_pixelsPerTile] px square in screen space
+    float screenTileSize = s_pixelsPerTile * m_pixelScale;
+    m_height = (float)m_vpHeight * worldTileSize / screenTileSize;
+    m_width = m_height * m_aspect;
+
+    // set vertical field-of-view
+    float fovy = getFieldOfView();
+
+    // we assume portrait orientation by default, so in landscape
+    // mode we scale the vertical FOV such that the wider dimension
+    // gets the intended FOV
+    if (m_width > m_height) {
+        fovy /= m_aspect;
+    }
+    // set camera z to produce desired viewable area
+    m_pos.z = m_height * 0.5 / tan(fovy * 0.5);
+
+#if true
+
+    // --- original code ---
+
+    // here is what this does:
+    // starting with a vector m_pos.z height over the map (away from sceen if map is on screen plane)
+    // rotate this vector along the x-axis and then rotate along the z-axis.
+    m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 0.f, m_pos.z), m_pitch), m_roll);
+
+    /*m_pos.x -= m_eye.x;
+    m_pos.y -= m_eye.y;
+
+    m_eye.x = 0;
+    m_eye.y = 0;*/
+
+    // this is the centre of the screen - this is where we are looking at
+    glm::vec3 at = { 0.f, 0.f, 0.f };
+
+    // the up vector is fixed with respect to the m_eye vector as we are rotating it in the same way
+    // just in the y direction not the z direction - so we are looking orthogonally away from the z-axis onto the map if its tilted
+    glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
+
+    // Generate view matrix
+    // using look at construct a view matrix - i.e. not the position of the cametra in the world coordinates
+    // BUT a transformation of the world coordinates into camera coordinates
+    m_view = glm::lookAt(m_eye, at, up);
+
+#else
+
+    // --- testing matrix with big offset ---
+
+    // make camera matrix so that m_pos.x == m_pos.y == 0
+    // as this should still work identically in updateMatricesFPC [...to be evaluated!]
+
+    // given that m_pos will be centre of map
+    // and m_pos.z - current camera hight required for fov projection to work
+    // just use m_pos as camera starting pos and rotate by pitch / roll:
+    m_eye = glm::rotateZ(glm::rotateX(glm::vec3(0,0, m_pos.z), m_pitch), m_roll);
+    m_eye.x += m_pos.x;
+    m_eye.y += m_pos.y;
+
+    // we are now just looking at flat point just below m_pos at z = 0
+    glm::vec3 at = { m_pos.x, m_pos.y, 0.f };
+
+    // up vector is computed regardless of absolute pos
+    glm::vec3 up = glm::rotateZ(glm::rotateX(glm::vec3(0.f, 1.f, 0.f), m_pitch), m_roll);
+
+    m_view = glm::lookAt(m_eye, at, up);
+
+    // as m_pos is now backed into view remove map offset
+    m_pos.x = 0;
+    m_pos.y = 0;
+   // m_pos.z = 0;
+
+#endif
+
+    // --------------- start: compute projection matrix ----------------------
+
+    float maxTileDistance = worldTileSize * invLodFunc(MAX_LOD + 1);
+    float near = m_pos.z / 50.f;
+    float far = 1;
+    float hw = 0.5 * m_width;
+    float hh = 0.5 * m_height;
+
+    // Generate projection matrix based on camera type
+    switch (m_type) {
+        case CameraType::perspective_free:
+        case CameraType::perspective:
+            far = 2. * m_pos.z / std::max(0., cos(m_pitch + 0.5 * fovy));
+            far = std::min(far, maxTileDistance);
+            cameraProjection = glm::perspective(fovy, m_aspect, near, far);
+            // Adjust for vanishing point.
+            cameraProjection[2][0] -= m_vanishingPoint.x / getWidth();
+            cameraProjection[2][1] -= m_vanishingPoint.y / getHeight();
+            break;
+        case CameraType::isometric:
+        case CameraType::flat:
+            far = 2. * (m_pos.z + hh * std::abs(tan(m_pitch)));
+            far = std::min(far, maxTileDistance);
+            cameraProjection = glm::ortho(-hw, hw, -hh, hh, near, far);
+            break;
+    }
+
+    if (m_type == CameraType::isometric) {
+        glm::mat4 shear = m_view;
+
+        // Add the oblique projection scaling factors to the shear matrix
+        shear[2][0] += m_obliqueAxis.x;
+        shear[2][1] += m_obliqueAxis.y;
+
+        // Remove the view from the shear matrix so we don't apply it two times
+        shear *= glm::inverse(m_view);
+
+        // Inject the shear in the projection matrix
+        cameraProjection *= shear;
+    }
+
+    // --------------- end: compute projection matrix ----------------------
+
+
+    // the inverse of this is the camera transform in world coordinates (this is the input from our drone in the AR use case for example)
+    cameraTransform = glm::inverse(m_view);
+
+    posOffset       = m_pos;
+    posOffset.z     = 0; // z is not meaninful here so set to zero
+}
+
+void View::updateMatricesFPC(glm::mat4 cameraTransform,glm::mat4 cameraProjection, glm::vec3 posOffset)
+{
+
+#if true
+
+    m_pos           = posOffset;
+    m_proj          = cameraProjection;
+
+    m_eye.x         = cameraTransform[3][0]; //tx
+    m_eye.y         = cameraTransform[3][1]; //ty
+    m_eye.z         = cameraTransform[3][2]; //tz
+
+    // get view matrix from cameraTransform (verify this is the correct way to do this!)
+    m_view          = glm::inverse(cameraTransform);
+
+#else
+
+    // doesnt work yet - but wont ever work properly with current tilt/roll camera because it shifts m_rot which is
+    // assumed to only be changed by setPosition() function
+
+    // as the tengram renderer only works if the camera position is based around x,y == 0,0
+    // we have to reconstruct a camera matrix with this parameters and move any
+    // translation in x y to the m_pos
+    // this requires decomposing matrix into rotation and translation
+    // this now works if eye is directly above 0,0 position but not if map has tilt - makes sense:
+    // we need to figure out where eye is looking and set that to 0,0 point! inverse lookat so to speak
+
+    //glm::vec3 scale;
+    //glm::quat rotation;
+    //glm::vec3 translation;
+    //glm::vec3 skew;
+    //glm::vec4 perspective;
+    //glm::decompose(cameraTransform, scale, rotation, translation, skew, perspective);
+
+    // isolate camera rotation
+    auto qRot           = glm::quat_cast(cameraTransform);
+    glm::mat4 camRot    = glm::mat4_cast(qRot);
+
+    // and camera translation
+    glm::mat4 camTrans  = glm::translate(glm::vec3(0.f, 0.f, cameraTransform[3][2] + posOffset.z)); // at x=0,y=0,z=cam height
+
+
+    // offload any camera translation onto posOffset
+    posOffset.x     += cameraTransform[3][0]; //tx
+    posOffset.y     += cameraTransform[3][1]; //ty
+    posOffset.z     = 0; // cant have z - offset only defines x y map offset
+
+    glm::mat4 newCamTransform = camRot * camTrans; //order correct??
+   //     glm::mat4 newCamTransform = camTrans * camRot; //order correct??
+
+    m_pos           = posOffset;
+    m_proj          = cameraProjection;
+
+    m_eye.x         = newCamTransform[3][0]; //tx
+    m_eye.y         = newCamTransform[3][1]; //tx
+    m_eye.z         = newCamTransform[3][2]; //tz
+
+    // get view matrix from cameraTransform (verify this is the correct way to do this!)
+    m_view          = glm::inverse(newCamTransform);
+
+#endif
+
+    m_viewProj      = m_proj * m_view;
+    m_invViewProj   = glm::inverse(m_viewProj);
+
+    // The matrix that transforms normals from world space to camera space is the transpose of the inverse of the view matrix,
+    // but since our view matrix is orthonormal transposing is equivalent to inverting, so the normal matrix is just the
+    // original view matrix (cropped to the top-left 3 rows and columns, since we're applying it to 3d vectors)
+    m_normalMatrix = glm::mat3(m_view);
+    m_invNormalMatrix = glm::inverse(m_normalMatrix);
+
+    // update height and width
+
+    // find dimensions of tiles in world space at new zoom level
+    float worldTileSize = 2 * MapProjection::HALF_CIRCUMFERENCE * pow(2, -m_zoom);
+
+    // viewport height in world space is such that each tile is [m_pixelsPerTile] px square in screen space
+    float screenTileSize = s_pixelsPerTile * m_pixelScale;
+    m_height = (float)m_vpHeight * worldTileSize / screenTileSize;
+    m_width = m_height * m_aspect;
+
+    m_dirtyMatrices = false;
+}
+
+
+
+
 void View::update(bool _constrainToWorldBounds) {
 
     m_changed = false;
@@ -264,7 +542,7 @@ void View::update(bool _constrainToWorldBounds) {
     }
 
     // Ensure valid pitch angle.
-    {
+    if(m_type != CameraType::perspective_free) {
         float maxPitchRadians = glm::radians(getMaxPitch());
         if (m_type != CameraType::perspective) {
             // Prevent projection plane from intersecting ground plane.
@@ -275,8 +553,35 @@ void View::update(bool _constrainToWorldBounds) {
     }
 
     if (m_dirtyMatrices) {
+#if 1
+        glm::mat4 cameraTransform;
+        glm::mat4 cameraProjection;
+        glm::vec3 posOffset;
 
+        // use the current pitch, roll and fov
+        // to make camera tranform and projection
+        // that gives us the restricted lookAt camera
+        if(cameraType() == CameraType::perspective_free) {
+            makeCameraTransformAndProjectionAR(cameraTransform,cameraProjection,posOffset);
+        } else {
+            makeCameraTransformAndProjectionPitchRoll(cameraTransform,cameraProjection,posOffset);
+        }
+
+        // delete these to make sure we arent accidentally reusing old values
+        m_pos           = glm::vec3(0);
+        m_eye           = glm::vec3(0);
+
+        m_proj          = glm::mat4(0);
+        m_view          = glm::mat4(0);
+        m_viewProj      = glm::mat4(0);
+        m_invViewProj   = glm::mat4(0);
+
+        // use free FPC update with the current restricted pitch and roll tranforms
+        // if all goes well this will match the functionality of updateMatrices();
+        updateMatricesFPC(cameraTransform,cameraProjection,posOffset);
+#else
         updateMatrices(); // Resets dirty flag
+#endif
         m_changed = true;
 
     }
@@ -329,6 +634,7 @@ double View::screenToGroundPlaneInternal(double& _screenX, double& _screenY) con
 
     glm::dvec4 origin_world;
     switch (m_type) {
+        case CameraType::perspective_free:
         case CameraType::perspective:
             origin_world = glm::dvec4(m_eye, 1);
             break;
@@ -414,6 +720,7 @@ void View::updateMatrices() {
 
     // Generate projection matrix based on camera type
     switch (m_type) {
+        case CameraType::perspective_free:
         case CameraType::perspective:
             far = 2. * m_pos.z / std::max(0., cos(m_pitch + 0.5 * fovy));
             far = std::min(far, maxTileDistance);
@@ -539,7 +846,7 @@ void View::getVisibleTiles(const std::function<void(TileID)>& _tileCb) const {
 
     ScanParams opt{ zoom, static_cast<int>(m_maxZoom) };
 
-    if (m_type == CameraType::perspective) {
+    if (m_type == CameraType::perspective || m_type == CameraType::perspective_free) {
 
         // Determine zoom reduction for tiles far from the center of view
         double tilesAtFullZoom = std::max(m_width, m_height) * invTileSize * 0.5;
